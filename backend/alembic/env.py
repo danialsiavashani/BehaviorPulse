@@ -11,6 +11,12 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from app.core.config import settings
 from app.db.base import Base
 from app.db.models.user import User  # noqa: F401
+from app.db.models.client_app import ClientApp  # noqa: F401
+from app.db.models.api_key import ApiKey  # noqa: F401
+from app.db.models.service import Service  # noqa: F401
+from app.db.models.client_service_scope import ClientServiceScope  # noqa: F401
+from app.db.models.request_log import ApiRequestLog  # noqa: F401
+from app.db.models.observation_analysis import ObservationAnalysis  # noqa: F401
 
 config = context.config
 
