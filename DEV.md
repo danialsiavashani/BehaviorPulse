@@ -20,8 +20,7 @@ pg_isready
 
 ## Terminal 1 — backend (FastAPI)
 cd backend
-source .venv/bin/activate
-uvicorn app.main:app --reload
+source .venv/bin/activate && uvicorn app.main:app --reload
 # → http://localhost:8000/health
 
 ## Terminal 2 — frontend (Next.js)
