@@ -14,6 +14,7 @@ from app.db.session import get_db
 from app.schemas.client_app import ClientAppCreate, ClientAppOut
 from app.db.models.client_service_scope import ClientServiceScope
 from app.schemas.client_service_scope import ScopeCreate, ScopeOut
+from fastapi import APIRouter, Depends, Response
 
 router = APIRouter(prefix="/v1/apps", tags=["client_apps"])
 
@@ -53,6 +54,7 @@ def list_client_apps(
 def grant_scope(
     client_app_id: uuid.UUID,
     payload: ScopeCreate,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -70,10 +72,5 @@ def grant_scope(
         existing.enabled = True
         db.commit()
         db.refresh(existing)
+        response.status_code = 200
         return existing
-
-    scope = ClientServiceScope(client_app_id=client_app_id, service_key=payload.service_key)
-    db.add(scope)
-    db.commit()
-    db.refresh(scope)
-    return scope
