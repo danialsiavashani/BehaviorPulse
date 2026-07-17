@@ -13,6 +13,17 @@ def compute_top_sources(df: pd.DataFrame, limit: int = 5) -> list[dict]:
         for source_id, count in counts.items()
     ]
 
+def compute_top_subjects(df: pd.DataFrame, limit: int = 10) -> list[dict]:
+    total = len(df)
+    counts = df["subject_label"].value_counts().head(limit)
+    return [
+        {
+            "subject_label": subject_label,
+            "count": int(count),
+            "percentage": round(count / total * 100, 1),
+        }
+        for subject_label, count in counts.items()
+    ]
 
 def compute_day_of_week_distribution(df: pd.DataFrame) -> dict[str, int]:
     return df["day_of_week"].value_counts().to_dict()

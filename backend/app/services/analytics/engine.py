@@ -9,17 +9,24 @@ from app.services.analytics.observation_metrics import (
     compute_prediction_confidence,
     compute_top_day_of_week,
     compute_top_sources,
+    compute_top_subjects,
     compute_top_time_window,
     detect_recurring_day_pattern,
 )
 
 
 def observations_to_dataframe(observations: list) -> pd.DataFrame:
-    """Flattens the nested request schema (each observation has a nested
-    `source` object) into a flat DataFrame the rest of the engine works with.
+    """Flattens the request into a flat DataFrame. Each row carries its own
+    subject_label now - a single request can mix many subjects (BMWs,
+    Hondas, pedestrians, whatever a camera actually saw) in one call.
     """
     rows = [
-        {"observed_at": obs.observed_at, "source_id": obs.source.id, "confidence": obs.confidence}
+        {
+            "observed_at": obs.observed_at,
+            "subject_label": obs.subject.label,
+            "source_id": obs.source.id,
+            "confidence": obs.confidence,
+        }
         for obs in observations
     ]
     df = pd.DataFrame(rows)
@@ -33,9 +40,6 @@ def filter_by_date_range(
     date_to: datetime | None,
     lookback_days: int,
 ) -> pd.DataFrame:
-    """date_from/date_to win if given. Otherwise falls back to the last
-    `lookback_days` days from now.
-    """
     if date_from is None and date_to is None:
         date_to = datetime.now(timezone.utc)
         date_from = date_to - timedelta(days=lookback_days)
@@ -50,16 +54,15 @@ def filter_by_date_range(
 
 def run_observation_analytics(
     observations: list,
-    subject_label: str,
     timezone_name: str,
     date_from: datetime | None,
     date_to: datetime | None,
     lookback_days: int,
     time_bucket_hours: int,
 ) -> dict:
-    """The single entry point: raw observations in, fully computed facts
-    out. This owns the entire deterministic pipeline end to end - the API
-    route only needs to call this one function.
+    """Entry point: raw observations (any mix of subjects) in, fully
+    computed facts out - including the frequency breakdown across
+    whatever subjects actually showed up in the data.
     """
     df = observations_to_dataframe(observations)
     df = filter_by_date_range(df, date_from, date_to, lookback_days)
@@ -73,6 +76,7 @@ def run_observation_analytics(
     total_observations = len(df)
     average_confidence = compute_average_confidence(df)
     confidence_trend = compute_confidence_trend(df)
+    top_subjects = compute_top_subjects(df)
     top_sources = compute_top_sources(df)
     top_day = compute_top_day_of_week(df)
     top_time_window = compute_top_time_window(df)
@@ -94,6 +98,12 @@ def run_observation_analytics(
             "support": f"{total_observations} matching observations in the selected date range",
         }
     ]
+    if top_subjects:
+        pattern_table.append({
+            "metric": "most_common_subject",
+            "value": top_subjects[0]["subject_label"],
+            "support": f"{top_subjects[0]['subject_label']} accounted for {top_subjects[0]['count']} of {total_observations} observations",
+        })
     if top_sources:
         pattern_table.append({
             "metric": "most_active_source",
@@ -114,8 +124,9 @@ def run_observation_analytics(
         })
 
     evidence_packet = {
-        "subject_label": subject_label,
         "total_observations": total_observations,
+        "distinct_subjects": len(top_subjects),
+        "top_subjects": top_subjects,
         "average_confidence": average_confidence,
         "confidence_trend": confidence_trend,
         "top_source": top_sources[0]["source_id"] if top_sources else None,
@@ -130,6 +141,7 @@ def run_observation_analytics(
         "total_observations": total_observations,
         "average_confidence": average_confidence,
         "confidence_trend": confidence_trend,
+        "top_subjects": top_subjects,
         "top_sources": top_sources,
         "top_day_of_week": top_day,
         "top_time_window": top_time_window,
@@ -137,15 +149,21 @@ def run_observation_analytics(
         "prediction_confidence": prediction_confidence,
         "pattern_table": pattern_table,
         "evidence_packet": evidence_packet,
-        "fallback_summary": _build_fallback_summary(subject_label, top_day, top_time_window),
+        "fallback_summary": _build_fallback_summary(top_subjects, top_day, top_time_window),
         "fallback_prediction": fallback_prediction,
     }
 
 
-def _build_fallback_summary(subject_label: str, top_day: dict | None, top_time_window: dict | None) -> str:
+def _build_fallback_summary(top_subjects: list[dict], top_day: dict | None, top_time_window: dict | None) -> str:
+    if not top_subjects:
+        return "Not enough data yet to identify a clear pattern."
+
+    subject_summary = ", ".join(
+        f"{s['subject_label']} ({s['percentage']}%)" for s in top_subjects[:3]
+    )
     if top_day is None or top_time_window is None:
-        return f"Not enough data yet to identify a clear pattern for {subject_label}."
+        return f"Observed subjects: {subject_summary}. Not enough data yet for a clear time pattern."
     return (
-        f"{subject_label} observations are concentrated around {top_time_window['window']}, "
-        f"especially on {top_day['day']}."
+        f"Observed subjects: {subject_summary}. Activity is concentrated around "
+        f"{top_time_window['window']}, especially on {top_day['day']}."
     )
