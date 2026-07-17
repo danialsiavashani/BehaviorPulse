@@ -74,3 +74,9 @@ def grant_scope(
         db.refresh(existing)
         response.status_code = 200
         return existing
+
+    scope = ClientServiceScope(client_app_id=client_app_id, service_key=payload.service_key)
+    db.add(scope)
+    db.commit()
+    db.refresh(scope)
+    return scope
