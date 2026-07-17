@@ -16,6 +16,7 @@ class SourceIn(BaseModel):
 
 class ObservationIn(BaseModel):
     observed_at: datetime
+    subject: SubjectIn
     source: SourceIn
     confidence: float = Field(ge=0.0, le=1.0)
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -32,7 +33,6 @@ class AnalysisOptions(BaseModel):
 
 class ObservationAnalyzeRequest(BaseModel):
     analysis_type: str = "activity_patterns"
-    subject: SubjectIn
     observations: list[ObservationIn] = Field(min_length=1)
     options: AnalysisOptions = Field(default_factory=AnalysisOptions)
 
@@ -41,6 +41,12 @@ class PatternTableRow(BaseModel):
     metric: str
     value: str
     support: str
+
+
+class TopSubject(BaseModel):
+    subject_label: str
+    count: int
+    percentage: float
 
 
 class TopSource(BaseModel):
@@ -64,6 +70,7 @@ class TopTimeWindow(BaseModel):
 class ComputedMetrics(BaseModel):
     total_observations: int
     average_confidence: float
+    top_subjects: list[TopSubject]
     top_sources: list[TopSource]
     top_day_of_week: TopDayOfWeek | None = None
     top_time_window: TopTimeWindow | None = None
