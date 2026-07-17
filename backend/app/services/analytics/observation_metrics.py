@@ -107,4 +107,5 @@ def compute_prediction_confidence(
     pattern_strength = recurring_hits / recurring_total
     sample_size_factor = min(total_observations / 30, 1.0)
     confidence = pattern_strength * (0.6 + 0.4 * sample_size_factor)
+    confidence = min(confidence, 0.99)  # never claim absolute certainty
     return round(confidence, 2)
