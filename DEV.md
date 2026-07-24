@@ -24,4 +24,5 @@ source .venv/bin/activate && uvicorn app.main:app --reload
 # → http://localhost:8000/health
 
 ## Terminal 2 — frontend (Next.js)
-# not built yet
+cd frontend
+npm run dev
