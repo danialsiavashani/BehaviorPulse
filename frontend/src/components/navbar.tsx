@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 export function Navbar() {
   return (
     <header className="border-b">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
+      <div className="flex h-14 items-center justify-between px-[5%]">
         <Link href="/" className="flex items-center gap-2">
           <Activity className="h-5 w-5 text-primary" />
           <span className="text-sm font-medium">BehaviorPulse</span>
