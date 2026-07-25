@@ -4,7 +4,7 @@ import uuid
 from app.core.errors import AppError
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -15,6 +15,9 @@ from app.schemas.client_app import ClientAppCreate, ClientAppOut
 from app.db.models.client_service_scope import ClientServiceScope
 from app.schemas.client_service_scope import ScopeCreate, ScopeOut
 from fastapi import APIRouter, Depends, Response
+from app.db.models.api_key import ApiKey
+from app.db.models.observation_analysis import ObservationAnalysis
+from app.db.models.request_log import ApiRequestLog
 
 router = APIRouter(prefix="/v1/apps", tags=["client_apps"])
 
@@ -80,3 +83,21 @@ def grant_scope(
     db.commit()
     db.refresh(scope)
     return scope
+
+@router.delete("/{client_app_id}", status_code=204)
+def delete_client_app(
+    client_app_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    client_app = db.get(ClientApp, client_app_id)
+    if client_app is None or client_app.owner_user_id != current_user.id:
+        raise AppError("not_found", "Client app not found.", 404)
+
+    db.execute(delete(ApiRequestLog).where(ApiRequestLog.client_app_id == client_app_id))
+    db.execute(delete(ObservationAnalysis).where(ObservationAnalysis.client_app_id == client_app_id))
+    db.execute(delete(ClientServiceScope).where(ClientServiceScope.client_app_id == client_app_id))
+    db.execute(delete(ApiKey).where(ApiKey.client_app_id == client_app_id))
+
+    db.delete(client_app)
+    db.commit()
