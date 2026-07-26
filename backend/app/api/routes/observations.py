@@ -1,10 +1,12 @@
 import secrets
+import time
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps_service_auth import require_service_auth
 from app.core.errors import PayloadTooLargeError
+from app.core.request_logging import write_request_log
 from app.db.models.client_app import ClientApp
 from app.db.models.observation_analysis import ObservationAnalysis
 from app.db.session import get_db
@@ -34,10 +36,26 @@ def _generate_analysis_id() -> str:
 @router.post("/analyze", response_model=ObservationAnalyzeResponse)
 def analyze_observations(
     payload: ObservationAnalyzeRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_client: ClientApp = Depends(require_service_auth("observations.analyze")),
 ):
+    start = getattr(request.state, "log_start_time", time.monotonic())
+    request_id = getattr(request.state, "request_id", "unknown")
+
     if len(payload.observations) > MAX_OBSERVATIONS:
+        write_request_log(
+            db,
+            client_app_id=current_client.id,
+            service_key="observations.analyze",
+            endpoint=request.url.path,
+            method=request.method,
+            status_code=413,
+            success=False,
+            error_code="payload_too_large",
+            latency_ms=int((time.monotonic() - start) * 1000),
+            request_id=request_id,
+        )
         raise PayloadTooLargeError(
             f"This request contains too many observations for synchronous "
             f"analysis (max {MAX_OBSERVATIONS}). Please reduce the date range "
@@ -95,8 +113,6 @@ def analyze_observations(
         )
         pattern_table = [PatternTableRow(**row) for row in result["pattern_table"]]
 
-        # Representative label for the DB record - the top subject in this
-        # batch. Full per-subject breakdown lives in computed_metrics_json.
         top_subject_label = result["top_subjects"][0]["subject_label"] if result["top_subjects"] else "unknown"
         matching_obs = next(
             (o for o in payload.observations if o.subject.label == top_subject_label), None
@@ -120,6 +136,19 @@ def analyze_observations(
     )
     db.add(analysis_record)
     db.commit()
+
+    write_request_log(
+        db,
+        client_app_id=current_client.id,
+        service_key="observations.analyze",
+        endpoint=request.url.path,
+        method=request.method,
+        status_code=200,
+        success=True,
+        error_code=None,
+        latency_ms=int((time.monotonic() - start) * 1000),
+        request_id=request_id,
+    )
 
     return ObservationAnalyzeResponse(
         analysis_id=analysis_id,

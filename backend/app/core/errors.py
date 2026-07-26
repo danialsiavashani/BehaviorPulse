@@ -52,6 +52,7 @@ def _error_body(error_code: str, message: str, request: Request) -> dict:
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def handle_app_error(request: Request, exc: AppError):
+        request.state.error_code = exc.error_code
         return JSONResponse(
             status_code=exc.status_code,
             content=_error_body(exc.error_code, exc.message, request),
@@ -61,6 +62,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def handle_http_exception(request: Request, exc: StarletteHTTPException):
         code_map = {401: "unauthorized", 403: "forbidden", 404: "not_found", 405: "method_not_allowed"}
         error_code = code_map.get(exc.status_code, "http_error")
+        request.state.error_code = error_code
         message = exc.detail if isinstance(exc.detail, str) else "Request failed."
         return JSONResponse(
             status_code=exc.status_code,
@@ -69,6 +71,7 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def handle_validation_error(request: Request, exc: RequestValidationError):
+        request.state.error_code = "invalid_payload"
         first = exc.errors()[0] if exc.errors() else {}
         field = ".".join(str(loc) for loc in first.get("loc", []) if loc != "body")
         detail = first.get("msg", "Invalid request payload.")
@@ -80,6 +83,7 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, exc: Exception):
+        request.state.error_code = "internal_error"
         logger.exception("Unhandled error", extra={"request_id": getattr(request.state, "request_id", None)})
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
