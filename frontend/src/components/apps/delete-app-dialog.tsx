@@ -26,10 +26,12 @@ export function DeleteAppDialog({
   app,
   open,
   onOpenChange,
+  redirectTo,
 }: {
   app: AppToDelete | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  redirectTo?: string;
 }) {
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
@@ -62,7 +64,12 @@ export function DeleteAppDialog({
 
     reset();
     onOpenChange(false);
-    router.refresh();
+
+    if (redirectTo) {
+      router.push(redirectTo);
+    } else {
+      router.refresh();
+    }
   }
 
   function handleOpenChange(next: boolean) {
