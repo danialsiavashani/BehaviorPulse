@@ -4,7 +4,7 @@ import uuid
 from app.core.errors import AppError
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select, delete
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -12,6 +12,7 @@ from app.db.models.client_app import ClientApp
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.client_app import ClientAppCreate, ClientAppOut
+from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.db.models.client_service_scope import ClientServiceScope
 from app.schemas.client_service_scope import ScopeCreate, ScopeOut
 from fastapi import APIRouter, Depends, Response
@@ -44,14 +45,28 @@ def create_client_app(
     return client_app
 
 
-@router.get("", response_model=list[ClientAppOut])
+@router.get("", response_model=PaginatedResponse[ClientAppOut])
 def list_client_apps(
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    apps = db.scalars(select(ClientApp).where(ClientApp.owner_user_id == current_user.id)).all()
-    return apps
+    base_query = select(ClientApp).where(ClientApp.owner_user_id == current_user.id)
 
+    total = db.scalar(select(func.count()).select_from(base_query.subquery()))
+
+    apps = db.scalars(
+        base_query.order_by(ClientApp.created_at.desc())
+        .offset(pagination.offset)
+        .limit(pagination.page_size)
+    ).all()
+
+    return PaginatedResponse(
+        items=apps,
+        total=total,
+        page=pagination.page,
+        page_size=pagination.page_size,
+    )
 
 @router.post("/{client_app_id}/scopes", response_model=ScopeOut, status_code=201)
 def grant_scope(

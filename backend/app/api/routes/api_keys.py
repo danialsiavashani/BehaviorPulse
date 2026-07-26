@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -14,6 +14,7 @@ from app.db.models.client_app import ClientApp
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.api_key import ApiKeyCreate, ApiKeyCreated, ApiKeyOut
+from app.schemas.pagination import PaginatedResponse, PaginationParams
 
 router = APIRouter(prefix="/v1/api-keys", tags=["api_keys"])
 
@@ -63,15 +64,31 @@ def create_api_key(
     )
 
 
-@router.get("", response_model=list[ApiKeyOut])
+@router.get("", response_model=PaginatedResponse[ApiKeyOut])
 def list_api_keys(
     client_app_id: uuid.UUID,
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     _get_owned_client_app(db, client_app_id, current_user.id)
-    keys = db.scalars(select(ApiKey).where(ApiKey.client_app_id == client_app_id)).all()
-    return keys
+
+    base_query = select(ApiKey).where(ApiKey.client_app_id == client_app_id)
+
+    total = db.scalar(select(func.count()).select_from(base_query.subquery()))
+
+    keys = db.scalars(
+        base_query.order_by(ApiKey.created_at.desc())
+        .offset(pagination.offset)
+        .limit(pagination.page_size)
+    ).all()
+
+    return PaginatedResponse(
+        items=keys,
+        total=total,
+        page=pagination.page,
+        page_size=pagination.page_size,
+    )
 
 
 @router.post("/{api_key_id}/revoke", response_model=ApiKeyOut)
