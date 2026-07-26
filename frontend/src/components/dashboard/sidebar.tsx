@@ -6,11 +6,11 @@ import {
   Activity,
   LayoutDashboard,
   Boxes,
-  KeyRound,
   Layers,
   ScrollText,
   BarChart3,
   BookOpen,
+  UserCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LogoutButton } from "@/components/dashboard/logout-button";
@@ -18,10 +18,11 @@ import { LogoutButton } from "@/components/dashboard/logout-button";
 const NAV_ITEMS = [
   { label: "Overview", href: "/dashboard", icon: LayoutDashboard, enabled: true },
   { label: "Apps", href: "/dashboard/apps", icon: Boxes, enabled: true },
-  { label: "Services", href: "/dashboard/services", icon: Layers, enabled: false },
+  { label: "Services", href: "/dashboard/services", icon: Layers, enabled: true },
   { label: "Logs", href: "/dashboard/logs", icon: ScrollText, enabled: false },
   { label: "Usage", href: "/dashboard/usage", icon: BarChart3, enabled: false },
   { label: "Docs", href: "/dashboard/docs", icon: BookOpen, enabled: false },
+  { label: "Account", href: "/dashboard/account", icon: UserCircle, enabled: true },
 ] as const;
 
 export function Sidebar({ userEmail }: { userEmail: string }) {
@@ -55,7 +56,8 @@ export function Sidebar({ userEmail }: { userEmail: string }) {
               );
             }
 
-            const isActive = pathname === item.href;
+            const isActive =
+              item.href === "/dashboard" ? pathname === item.href : pathname.startsWith(item.href);
 
             return (
               <Link
@@ -102,7 +104,8 @@ export function Sidebar({ userEmail }: { userEmail: string }) {
               );
             }
 
-            const isActive = pathname === item.href;
+            const isActive =
+              item.href === "/dashboard" ? pathname === item.href : pathname.startsWith(item.href);
 
             return (
               <Link
