@@ -9,7 +9,7 @@ DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
 
 class DeepSeekClient(LLMClient):
-    def __init__(self, api_key: str, model: str = "deepseek-chat", timeout_seconds: float = 15.0):
+    def __init__(self, api_key: str, model: str = "deepseek-v4-flash", timeout_seconds: float = 15.0):
         self._api_key = api_key
         self._model = model
         self._timeout_seconds = timeout_seconds
