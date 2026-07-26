@@ -1,55 +1,55 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
-import { ChevronRight } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
-import { CopyableId } from "@/components/apps/copyable-id";
-import { formatDate } from "@/lib/utils";
+import { CreateApiKeyDialog } from "@/components/api-keys/create-api-key-dialog";
+import { ApiKeysList } from "@/components/api-keys/api-keys-list";
+import { PaginationControls } from "@/components/shared/pagination-controls";
 
-type ClientApp = {
-  id: string;
-  name: string;
-  environment: string;
-  client_id: string;
-  created_at: string;
+type ApiKeysPage = {
+  items: {
+    id: string;
+    name: string;
+    key_prefix: string;
+    is_active: boolean;
+    created_at: string;
+    revoked_at: string | null;
+    last_used_at: string | null;
+  }[];
+  total: number;
+  page: number;
+  page_size: number;
 };
 
-export default async function AppDetailPage({
+export default async function AppApiKeysPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ page?: string }>;
 }) {
   const { id } = await params;
+  const { page: pageParam } = await searchParams;
+  const page = pageParam ? parseInt(pageParam, 10) : 1;
 
-  const res = await apiFetch("/v1/apps");
-  const apps: ClientApp[] = res.ok ? await res.json() : [];
-  const app = apps.find((a) => a.id === id);
-
-  if (!app) notFound();
+  const keysRes = await apiFetch(`/v1/api-keys?client_app_id=${id}&page=${page}&page_size=8`);
+  const keysData: ApiKeysPage = keysRes.ok
+    ? await keysRes.json()
+    : { items: [], total: 0, page: 1, page_size: 8 };
 
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link href="/dashboard/apps" className="hover:text-foreground">
-          Apps
-        </Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">{app.name}</span>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-medium">API keys</h2>
+        <CreateApiKeyDialog clientAppId={id} />
       </div>
 
-      <div className="mt-3 flex items-center gap-3">
-        <h1 className="text-2xl font-semibold">{app.name}</h1>
-        <Badge variant="secondary">{app.environment}</Badge>
+      <div className="mt-4">
+        <ApiKeysList apiKeys={keysData.items} clientAppId={id} />
       </div>
 
-      <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
-        <CopyableId value={app.client_id} />
-        <span>Created {formatDate(app.created_at)}</span>
-      </div>
-
-      <div className="mt-8 text-sm text-muted-foreground">
-        API keys for this app will go here.
-      </div>
+      <PaginationControls
+        page={keysData.page}
+        pageSize={keysData.page_size}
+        total={keysData.total}
+      />
     </div>
   );
 }
