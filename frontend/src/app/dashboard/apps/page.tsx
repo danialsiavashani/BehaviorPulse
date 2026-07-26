@@ -1,6 +1,7 @@
 import { apiFetch } from "@/lib/api";
 import { CreateAppDialog } from "@/components/apps/create-app-dialog";
 import { AppsGrid } from "@/components/apps/apps-grid";
+import { PaginationControls } from "@/components/shared/pagination-controls";
 
 type ClientApp = {
   id: string;
@@ -10,9 +11,25 @@ type ClientApp = {
   created_at: string;
 };
 
-export default async function AppsPage() {
-  const res = await apiFetch("/v1/apps");
-  const apps: ClientApp[] = res.ok ? await res.json() : [];
+type AppsPageData = {
+  items: ClientApp[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export default async function AppsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page: pageParam } = await searchParams;
+  const page = pageParam ? parseInt(pageParam, 10) : 1;
+
+  const res = await apiFetch(`/v1/apps?page=${page}&page_size=9`);
+  const data: AppsPageData = res.ok
+    ? await res.json()
+    : { items: [], total: 0, page: 1, page_size: 9 };
 
   return (
     <div>
@@ -27,8 +44,10 @@ export default async function AppsPage() {
       </div>
 
       <div className="mt-6">
-        <AppsGrid apps={apps} />
+        <AppsGrid apps={data.items} />
       </div>
+
+      <PaginationControls page={data.page} pageSize={data.page_size} total={data.total} />
     </div>
   );
 }
