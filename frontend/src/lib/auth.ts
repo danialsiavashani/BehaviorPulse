@@ -6,6 +6,24 @@ const BACKEND_URL = process.env.BACKEND_URL;
 
 type ApiError = { error: string; message: string; request_id: string | null };
 
+async function setTokenCookies(accessToken: string, refreshToken: string) {
+  const cookieStore = await cookies();
+
+  cookieStore.set("access_token", accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+  });
+
+  cookieStore.set("refresh_token", refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+  });
+}
+
 export async function signup(email: string, password: string) {
   const res = await fetch(`${BACKEND_URL}/v1/auth/signup`, {
     method: "POST",
@@ -18,8 +36,6 @@ export async function signup(email: string, password: string) {
     return { error: data.message };
   }
 
-  // Signup succeeded but doesn't log the user in - reuse login() so
-  // they're authenticated immediately after signing up.
   return login(email, password);
 }
 
@@ -36,24 +52,28 @@ export async function login(email: string, password: string) {
   }
 
   const data = await res.json();
-  const cookieStore = await cookies();
-
-  cookieStore.set("access_token", data.access_token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-  });
+  await setTokenCookies(data.access_token, data.refresh_token);
 
   return { success: true };
 }
 
 export async function logout() {
   const cookieStore = await cookies();
+  const refreshToken = cookieStore.get("refresh_token")?.value;
+
+  if (refreshToken) {
+    await fetch(`${BACKEND_URL}/v1/auth/logout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    }).catch(() => {
+      // Best-effort revoke - clearing the cookies below still logs the
+      // browser out even if this call fails.
+    });
+  }
+
   cookieStore.delete("access_token");
-  // No server-side revoke call yet - BehaviorPulse has no refresh/
-  // blacklist mechanism (v1 stretch, not built). Clearing the cookie
-  // is enough; the JWT just expires naturally on its own.
+  cookieStore.delete("refresh_token");
 }
 
 export async function updateName(name: string) {
