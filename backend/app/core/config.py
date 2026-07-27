@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 30
+    refresh_reuse_grace_seconds: int = 10
 
     llm_provider: str = "deepseek"
     llm_api_key: str | None = None
