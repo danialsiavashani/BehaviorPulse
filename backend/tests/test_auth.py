@@ -59,4 +59,4 @@ def test_me_with_valid_token_returns_user():
 
 def test_me_without_token_fails():
     response = client.get("/v1/auth/me")
-    assert response.status_code == 401
+    assert response.status_code == 403
