@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -18,6 +18,7 @@ USAGE_WINDOW_DAYS = 14
 
 @router.get("", response_model=UsageOut)
 def get_usage(
+    service_key: str | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -26,6 +27,8 @@ def get_usage(
         .join(ClientApp, ApiRequestLog.client_app_id == ClientApp.id)
         .where(ClientApp.owner_user_id == current_user.id)
     )
+    if service_key is not None:
+        base_query = base_query.where(ApiRequestLog.service_key == service_key)
 
     total_requests = db.scalar(select(func.count()).select_from(base_query.subquery()))
     success_count = db.scalar(
@@ -36,25 +39,31 @@ def get_usage(
     error_count = total_requests - success_count
     success_rate = round((success_count / total_requests) * 100, 1) if total_requests else 0.0
 
-    by_service_rows = db.execute(
+    by_service_query = (
         select(ApiRequestLog.service_key, func.count().label("count"))
         .join(ClientApp, ApiRequestLog.client_app_id == ClientApp.id)
         .where(ClientApp.owner_user_id == current_user.id)
-        .group_by(ApiRequestLog.service_key)
-        .order_by(func.count().desc())
+    )
+    if service_key is not None:
+        by_service_query = by_service_query.where(ApiRequestLog.service_key == service_key)
+    by_service_rows = db.execute(
+        by_service_query.group_by(ApiRequestLog.service_key).order_by(func.count().desc())
     ).all()
     by_service = [
         UsageByService(service_key=row.service_key or "unknown", count=row.count)
         for row in by_service_rows
     ]
 
-    by_app_rows = db.execute(
+    by_app_query = (
         select(ClientApp.id, ClientApp.name, func.count().label("count"))
         .select_from(ApiRequestLog)
         .join(ClientApp, ApiRequestLog.client_app_id == ClientApp.id)
         .where(ClientApp.owner_user_id == current_user.id)
-        .group_by(ClientApp.id, ClientApp.name)
-        .order_by(func.count().desc())
+    )
+    if service_key is not None:
+        by_app_query = by_app_query.where(ApiRequestLog.service_key == service_key)
+    by_app_rows = db.execute(
+        by_app_query.group_by(ClientApp.id, ClientApp.name).order_by(func.count().desc())
     ).all()
     by_app = [
         UsageByApp(client_app_id=row.id, app_name=row.name, count=row.count)
@@ -62,15 +71,17 @@ def get_usage(
     ]
 
     window_start = datetime.now(timezone.utc) - timedelta(days=USAGE_WINDOW_DAYS - 1)
-    daily_rows = db.execute(
+    daily_query = (
         select(func.date(ApiRequestLog.created_at).label("day"), func.count().label("count"))
         .join(ClientApp, ApiRequestLog.client_app_id == ClientApp.id)
         .where(
             ClientApp.owner_user_id == current_user.id,
             ApiRequestLog.created_at >= window_start,
         )
-        .group_by(func.date(ApiRequestLog.created_at))
-    ).all()
+    )
+    if service_key is not None:
+        daily_query = daily_query.where(ApiRequestLog.service_key == service_key)
+    daily_rows = db.execute(daily_query.group_by(func.date(ApiRequestLog.created_at))).all()
     counts_by_day = {row.day.isoformat(): row.count for row in daily_rows}
 
     requests_over_time = []
