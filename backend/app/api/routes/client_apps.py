@@ -68,8 +68,24 @@ def list_client_apps(
         page_size=pagination.page_size,
     )
 
+@router.get("/{client_app_id}/scopes", response_model=list[ScopeOut])
+def list_scopes(
+    client_app_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    client_app = db.get(ClientApp, client_app_id)
+    if client_app is None or client_app.owner_user_id != current_user.id:
+        raise AppError("not_found", "Client app not found.", 404)
+
+    scopes = db.scalars(
+        select(ClientServiceScope).where(ClientServiceScope.client_app_id == client_app_id)
+    ).all()
+    return scopes
+
+
 @router.post("/{client_app_id}/scopes", response_model=ScopeOut, status_code=201)
-def grant_scope(
+def set_scope(
     client_app_id: uuid.UUID,
     payload: ScopeCreate,
     response: Response,
@@ -87,13 +103,17 @@ def grant_scope(
         )
     )
     if existing:
-        existing.enabled = True
+        existing.enabled = payload.enabled
         db.commit()
         db.refresh(existing)
         response.status_code = 200
         return existing
 
-    scope = ClientServiceScope(client_app_id=client_app_id, service_key=payload.service_key)
+    scope = ClientServiceScope(
+        client_app_id=client_app_id,
+        service_key=payload.service_key,
+        enabled=payload.enabled,
+    )
     db.add(scope)
     db.commit()
     db.refresh(scope)

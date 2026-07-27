@@ -17,10 +17,15 @@ class UserLogin(BaseModel):
 class UserOut(BaseModel):
     id: uuid.UUID
     email: EmailStr
+    name: str | None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class UserUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
 
 
 class Token(BaseModel):

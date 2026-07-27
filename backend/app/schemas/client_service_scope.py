@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 class ScopeCreate(BaseModel):
     service_key: str
+    enabled: bool = True
 
 
 class ScopeOut(BaseModel):
