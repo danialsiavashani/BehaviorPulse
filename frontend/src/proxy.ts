@@ -32,7 +32,7 @@ function isExpiredOrNearExpiry(accessToken: string): boolean {
   return exp - nowSeconds < REFRESH_MARGIN_SECONDS;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const accessToken = request.cookies.get("access_token")?.value;
   const refreshToken = request.cookies.get("refresh_token")?.value;
 
