@@ -56,6 +56,29 @@ export async function logout() {
   // is enough; the JWT just expires naturally on its own.
 }
 
+export async function updateName(name: string) {
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get("access_token")?.value;
+
+  if (!accessToken) return { error: "Not authenticated" };
+
+  const res = await fetch(`${BACKEND_URL}/v1/auth/me`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ name }),
+  });
+
+  if (!res.ok) {
+    const data: ApiError = await res.json();
+    return { error: data.message };
+  }
+
+  return { success: true };
+}
+
 export async function getCurrentUser() {
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("access_token")?.value;

@@ -31,3 +31,18 @@ export async function deleteApp(clientAppId: string) {
   revalidatePath("/dashboard/apps");
   return { success: true };
 }
+
+export async function setScope(clientAppId: string, serviceKey: string, enabled: boolean) {
+  const res = await apiFetch(`/v1/apps/${clientAppId}/scopes`, {
+    method: "POST",
+    body: JSON.stringify({ service_key: serviceKey, enabled }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json();
+    return { error: data.message as string };
+  }
+
+  revalidatePath(`/dashboard/apps/${clientAppId}/settings`);
+  return { success: true };
+}
