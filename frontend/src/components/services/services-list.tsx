@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { CopyableId } from "@/components/apps/copyable-id";
 import { formatDate } from "@/lib/utils";
@@ -24,7 +26,11 @@ export function ServicesList({ services }: { services: Service[] }) {
   return (
     <div className="flex flex-col gap-3">
       {services.map((service) => (
-        <div key={service.id} className="rounded-lg border p-4">
+        <Link
+          key={service.id}
+          href={`/dashboard/services/${service.service_key}`}
+          className="group relative block rounded-lg border p-4 transition-colors hover:border-primary/40 hover:bg-muted/30"
+        >
           <div className="flex items-center gap-2">
             <p className="font-medium">{service.name}</p>
             <Badge variant={service.status === "active" ? "secondary" : "outline"}>
@@ -38,7 +44,9 @@ export function ServicesList({ services }: { services: Service[] }) {
             <span className="font-mono">{service.service_key}</span>
             <span>Added {formatDate(service.created_at)}</span>
           </div>
-        </div>
+
+          <ChevronRight className="pointer-events-none absolute bottom-4 right-4 h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+        </Link>
       ))}
     </div>
   );
