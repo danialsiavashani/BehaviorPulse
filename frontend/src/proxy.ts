@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL = process.env.BACKEND_URL;
 
-// How much of a safety margin to refresh ahead of actual expiry, so a
-// request that lands a moment after middleware runs doesn't just miss it.
 const REFRESH_MARGIN_SECONDS = 120;
 
 function base64UrlDecode(segment: string): string {
