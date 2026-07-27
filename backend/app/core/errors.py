@@ -1,4 +1,5 @@
 import logging
+import time
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -85,6 +86,29 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def handle_unexpected_error(request: Request, exc: Exception):
         request.state.error_code = "internal_error"
         logger.exception("Unhandled error", extra={"request_id": getattr(request.state, "request_id", None)})
+
+        service_key = getattr(request.state, "service_key", None)
+        if service_key is not None:
+            from app.core.request_logging import write_request_log
+            from app.db.session import SessionLocal
+
+            db = SessionLocal()
+            try:
+                write_request_log(
+                    db,
+                    client_app_id=getattr(request.state, "client_app_id", None),
+                    service_key=service_key,
+                    endpoint=request.url.path,
+                    method=request.method,
+                    status_code=500,
+                    success=False,
+                    error_code="internal_error",
+                    latency_ms=int((time.monotonic() - getattr(request.state, "log_start_time", time.monotonic())) * 1000),
+                    request_id=getattr(request.state, "request_id", "unknown"),
+                )
+            finally:
+                db.close()
+
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=_error_body("internal_error", "Something went wrong on our end.", request),
