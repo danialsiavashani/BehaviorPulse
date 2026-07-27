@@ -53,7 +53,15 @@ export async function proxy(request: NextRequest) {
   }
 
   const data: { access_token: string; refresh_token: string } = await refreshRes.json();
-  const response = NextResponse.next();
+
+  // Update the request's own cookies too, not just the outgoing response -
+  // otherwise anything downstream in *this* request cycle (Server
+  // Components, or a Server Action submitted on this same request) still
+  // sees the old, now-revoked tokens.
+  request.cookies.set("access_token", data.access_token);
+  request.cookies.set("refresh_token", data.refresh_token);
+
+  const response = NextResponse.next({ request });
 
   response.cookies.set("access_token", data.access_token, {
     httpOnly: true,
