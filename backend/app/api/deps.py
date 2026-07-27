@@ -16,12 +16,18 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     try:
-        user_id = decode_access_token(credentials.credentials)
+        payload = decode_access_token(credentials.credentials)
     except JWTError:
         raise AppError("invalid_token", "Invalid or expired token.", 401)
 
+    user_id = payload.get("sub")
+    token_version = payload.get("tv")
+
     user = db.get(User, user_id)
     if user is None:
+        raise AppError("invalid_token", "Invalid or expired token.", 401)
+
+    if user.token_version != token_version:
         raise AppError("invalid_token", "Invalid or expired token.", 401)
 
     return user
