@@ -9,6 +9,7 @@ import {
   Layers,
   ScrollText,
   BarChart3,
+  ClipboardList,
   BookOpen,
   UserCircle,
 } from "lucide-react";
@@ -19,9 +20,10 @@ const NAV_ITEMS = [
   { label: "Overview", href: "/dashboard", icon: LayoutDashboard, enabled: true },
   { label: "Apps", href: "/dashboard/apps", icon: Boxes, enabled: true },
   { label: "Services", href: "/dashboard/services", icon: Layers, enabled: true },
-  { label: "Logs", href: "/dashboard/logs", icon: ScrollText, enabled: false },
-  { label: "Usage", href: "/dashboard/usage", icon: BarChart3, enabled: false },
-  { label: "Docs", href: "/dashboard/docs", icon: BookOpen, enabled: false },
+  { label: "Logs", href: "/dashboard/logs", icon: ScrollText, enabled: true },
+  { label: "Usage", href: "/dashboard/usage", icon: BarChart3, enabled: true },
+  { label: "Analyses", href: "/dashboard/analyses", icon: ClipboardList, enabled: true },
+  { label: "Docs", href: "/dashboard/docs", icon: BookOpen, enabled: true },
   { label: "Account", href: "/dashboard/account", icon: UserCircle, enabled: true },
 ] as const;
 
