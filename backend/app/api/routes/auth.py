@@ -33,8 +33,6 @@ router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
 
 def _build_tokens(db: Session, user: User) -> Token:
-    """Adds a new refresh token row (uncommitted) and returns a fresh
-    access/refresh pair. Caller is responsible for db.commit()."""
     raw_refresh = generate_refresh_token()
     refresh_row = RefreshToken(
         user_id=user.id,
@@ -87,15 +85,22 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
         raise AppError("invalid_token", "Invalid or expired refresh token.", 401)
 
     if existing.revoked_at is not None:
-        # This token was already rotated away once. Being presented again
-        # means it was likely stolen before the legitimate rotation - treat
-        # it as a compromise signal and kill every session for this user.
+        seconds_since_revoked = (datetime.now(timezone.utc) - existing.revoked_at).total_seconds()
+
+        if seconds_since_revoked > settings.refresh_reuse_grace_seconds:
+            user = db.get(User, existing.user_id)
+            if user is not None:
+                user.token_version += 1
+            _revoke_all_refresh_tokens(db, existing.user_id)
+            db.commit()
+            raise AppError("invalid_token", "Invalid or expired refresh token.", 401)
+
         user = db.get(User, existing.user_id)
-        if user is not None:
-            user.token_version += 1
-        _revoke_all_refresh_tokens(db, existing.user_id)
+        if user is None:
+            raise AppError("invalid_token", "Invalid or expired refresh token.", 401)
+        token = _build_tokens(db, user)
         db.commit()
-        raise AppError("invalid_token", "Invalid or expired refresh token.", 401)
+        return token
 
     if existing.expires_at < datetime.now(timezone.utc):
         existing.revoked_at = datetime.now(timezone.utc)
