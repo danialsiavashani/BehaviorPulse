@@ -58,11 +58,11 @@ def _build_tokens(db: Session, user: User) -> Token:
     return Token(access_token=access_token, refresh_token=raw_refresh)
 
 
-def _revoke_all_refresh_tokens(db: Session, user_id) -> None:
+def _revoke_all_refresh_tokens(db: Session, user_id, reason: str) -> None:
     db.execute(
         update(RefreshToken)
         .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
-        .values(revoked_at=datetime.now(timezone.utc))
+        .values(revoked_at=datetime.now(timezone.utc), revoked_reason=reason)
     )
 
 
@@ -99,24 +99,32 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
 
     if existing.revoked_at is not None:
         seconds_since_revoked = (datetime.now(timezone.utc) - existing.revoked_at).total_seconds()
+        within_grace_period = seconds_since_revoked <= settings.refresh_reuse_grace_seconds
 
-        if seconds_since_revoked > settings.refresh_reuse_grace_seconds:
+        # Grace period only ever applies to tokens that died via normal
+        # rotation - a race between two legitimate concurrent requests.
+        # Tokens killed by logout, password/email change, or a prior
+        # theft response were deliberately, permanently ended - reusing
+        # those is never given the benefit of the doubt, no matter how
+        # soon after.
+        if within_grace_period and existing.revoked_reason == "rotated":
             user = db.get(User, existing.user_id)
-            if user is not None:
-                user.token_version += 1
-            _revoke_all_refresh_tokens(db, existing.user_id)
+            if user is None:
+                raise AppError("invalid_token", "Invalid or expired refresh token.", 401)
+            token = _build_tokens(db, user)
             db.commit()
-            raise AppError("invalid_token", "Invalid or expired refresh token.", 401)
+            return token
 
         user = db.get(User, existing.user_id)
-        if user is None:
-            raise AppError("invalid_token", "Invalid or expired refresh token.", 401)
-        token = _build_tokens(db, user)
+        if user is not None:
+            user.token_version += 1
+        _revoke_all_refresh_tokens(db, existing.user_id, reason="security_action")
         db.commit()
-        return token
+        raise AppError("invalid_token", "Invalid or expired refresh token.", 401)
 
     if existing.expires_at < datetime.now(timezone.utc):
         existing.revoked_at = datetime.now(timezone.utc)
+        existing.revoked_reason = "expired"
         db.commit()
         raise AppError("invalid_token", "Invalid or expired refresh token.", 401)
 
@@ -125,6 +133,7 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
         raise AppError("invalid_token", "Invalid or expired refresh token.", 401)
 
     existing.revoked_at = datetime.now(timezone.utc)
+    existing.revoked_reason = "rotated"
     token = _build_tokens(db, user)
     db.commit()
     return token
@@ -136,6 +145,7 @@ def logout(payload: LogoutRequest, db: Session = Depends(get_db)):
     existing = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
     if existing is not None and existing.revoked_at is None:
         existing.revoked_at = datetime.now(timezone.utc)
+        existing.revoked_reason = "logout"
         db.commit()
 
 
@@ -160,9 +170,6 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
         try:
             get_email_client().send_password_reset_email(user.email, reset_link)
         except Exception as exc:
-            # Never let an email-provider hiccup crash this request or leak
-            # whether the account exists via a 500. The reset token is
-            # already saved - log the link so it's still recoverable in dev.
             logger.warning(
                 "Failed to send password reset email to %s: %s. Reset link: %s",
                 user.email,
@@ -187,7 +194,7 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
 
     user.password_hash = hash_password(payload.new_password)
     user.token_version += 1
-    _revoke_all_refresh_tokens(db, user.id)
+    _revoke_all_refresh_tokens(db, user.id, reason="security_action")
     existing.used_at = datetime.now(timezone.utc)
 
     token = _build_tokens(db, user)
@@ -223,7 +230,7 @@ def change_password(
 
     current_user.password_hash = hash_password(payload.new_password)
     current_user.token_version += 1
-    _revoke_all_refresh_tokens(db, current_user.id)
+    _revoke_all_refresh_tokens(db, current_user.id, reason="security_action")
 
     token = _build_tokens(db, current_user)
     db.commit()
@@ -247,7 +254,7 @@ def change_email(
 
     current_user.email = payload.new_email
     current_user.token_version += 1
-    _revoke_all_refresh_tokens(db, current_user.id)
+    _revoke_all_refresh_tokens(db, current_user.id, reason="security_action")
 
     token = _build_tokens(db, current_user)
     db.commit()
