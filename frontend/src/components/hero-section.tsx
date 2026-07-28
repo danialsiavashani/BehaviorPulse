@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ServiceDemo } from "@/components/services/service-demo";
+import { DemoLoginButton } from "@/components/auth/demo-login-button";
 
 export function HeroSection() {
   return (
@@ -15,11 +16,12 @@ export function HeroSection() {
           summaries, predictions, and confidence scores — no guessing, no invented numbers.
         </p>
 
-        <div className="mt-6 flex items-center gap-3">
-          <Button size="lg" asChild>
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <DemoLoginButton />
+          <Button size="lg" variant="outline" asChild>
             <Link href="/signup">Get started</Link>
           </Button>
-          <Button size="lg" variant="outline" asChild>
+          <Button size="lg" variant="ghost" asChild>
             <Link href="/login">Log in</Link>
           </Button>
         </div>

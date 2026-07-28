@@ -70,6 +70,24 @@ export async function login(email: string, password: string): Promise<ActionResu
   return { success: true };
 }
 
+export async function demoLogin(): Promise<ActionResult> {
+  const res = await safeFetch(`${BACKEND_URL}/v1/auth/demo-login`, {
+    method: "POST",
+  });
+
+  if (!res) return { error: "Could not reach the server. Please try again." };
+
+  if (!res.ok) {
+    const data: ApiError = await res.json();
+    return { error: data.message };
+  }
+
+  const data = await res.json();
+  await setTokenCookies(data.access_token, data.refresh_token);
+
+  return { success: true };
+}
+
 export async function logout() {
   const cookieStore = await cookies();
   const refreshToken = cookieStore.get("refresh_token")?.value;
