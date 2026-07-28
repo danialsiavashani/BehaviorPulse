@@ -18,6 +18,7 @@ from app.db.models.client_service_scope import ClientServiceScope  # noqa: F401
 from app.db.models.request_log import ApiRequestLog  # noqa: F401
 from app.db.models.observation_analysis import ObservationAnalysis  # noqa: F401
 from app.db.models.refresh_token import RefreshToken  # noqa: F401
+from app.db.models.password_reset_token import PasswordResetToken  # noqa: F401
 
 config = context.config
 
