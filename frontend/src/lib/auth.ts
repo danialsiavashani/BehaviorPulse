@@ -173,6 +173,30 @@ export async function changeEmail(
   return { success: true };
 }
 
+export async function deleteAccount(): Promise<ActionResult> {
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get("access_token")?.value;
+
+  if (!accessToken) return { error: "Not authenticated" };
+
+  const res = await safeFetch(`${BACKEND_URL}/v1/auth/me`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!res) return { error: "Could not reach the server. Please try again." };
+
+  if (!res.ok) {
+    const data: ApiError = await res.json();
+    return { error: data.message };
+  }
+
+  cookieStore.delete("access_token");
+  cookieStore.delete("refresh_token");
+
+  return { success: true };
+}
+
 export async function getCurrentUser() {
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("access_token")?.value;

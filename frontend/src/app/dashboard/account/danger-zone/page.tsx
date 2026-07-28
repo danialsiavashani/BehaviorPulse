@@ -1,10 +1,12 @@
-import { ComingSoon } from "@/components/account/coming-soon";
+import { getCurrentUser } from "@/lib/auth";
+import { AccountDangerZone } from "@/components/account/danger-zone";
 
-export default function AccountDangerZonePage() {
+export default async function AccountDangerZonePage() {
+  const user = await getCurrentUser();
+
   return (
-    <ComingSoon
-      title="Delete account"
-      description="Permanently delete your account and everything in it, once it's built."
-    />
+    <div className="max-w-md">
+      <AccountDangerZone email={user?.email ?? ""} />
+    </div>
   );
 }
