@@ -197,6 +197,43 @@ export async function deleteAccount(): Promise<ActionResult> {
   return { success: true };
 }
 
+export async function forgotPassword(email: string): Promise<ActionResult> {
+  const res = await safeFetch(`${BACKEND_URL}/v1/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!res) return { error: "Could not reach the server. Please try again." };
+
+  if (!res.ok) {
+    const data: ApiError = await res.json();
+    return { error: data.message };
+  }
+
+  return { success: true };
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<ActionResult> {
+  const res = await safeFetch(`${BACKEND_URL}/v1/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
+
+  if (!res) return { error: "Could not reach the server. Please try again." };
+
+  if (!res.ok) {
+    const data: ApiError = await res.json();
+    return { error: data.message };
+  }
+
+  const data = await res.json();
+  await setTokenCookies(data.access_token, data.refresh_token);
+
+  return { success: true };
+}
+
 export async function getCurrentUser() {
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("access_token")?.value;

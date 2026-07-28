@@ -1,47 +1,50 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
-import { login } from "@/lib/auth";
+import { forgotPassword } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel, FieldError } from "@/components/ui/field";
 
-const loginSchema = z.object({
+const schema = z.object({
   email: z.string().min(1, "Email is required").email("Enter a valid email"),
-  password: z.string().min(1, "Password is required"),
 });
 
-type LoginValues = z.infer<typeof loginSchema>;
+type FormValues = z.infer<typeof schema>;
 
-export function LoginForm() {
-  const router = useRouter();
+export function ForgotPasswordForm() {
   const [formError, setFormError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<LoginValues>({
-    resolver: zodResolver(loginSchema),
-  });
+  } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
-  async function onSubmit(values: LoginValues) {
+  async function onSubmit(values: FormValues) {
     setFormError(null);
-    const result = await login(values.email, values.password);
+    const result = await forgotPassword(values.email);
 
     if (result?.error) {
       setFormError(result.error);
       return;
     }
 
-    router.push("/dashboard");
-    router.refresh();
+    setSubmitted(true);
+  }
+
+  if (submitted) {
+    return (
+      <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+        If an account exists for that email, a password reset link is on its way. Check your
+        inbox (and spam folder).
+      </div>
+    );
   }
 
   return (
@@ -59,26 +62,6 @@ export function LoginForm() {
           <FieldError errors={errors.email ? [errors.email] : undefined} />
         </Field>
 
-        <Field data-invalid={!!errors.password}>
-          <div className="flex items-center justify-between">
-            <FieldLabel htmlFor="password">Password</FieldLabel>
-            <Link
-              href="/forgot-password"
-              className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              Forgot password?
-            </Link>
-          </div>
-          <Input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            aria-invalid={!!errors.password}
-            {...register("password")}
-          />
-          <FieldError errors={errors.password ? [errors.password] : undefined} />
-        </Field>
-
         {formError && (
           <p role="alert" className="text-sm font-normal text-destructive">
             {formError}
@@ -87,7 +70,7 @@ export function LoginForm() {
 
         <Field>
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Logging in..." : "Log in"}
+            {isSubmitting ? "Sending..." : "Send reset link"}
           </Button>
         </Field>
       </FieldGroup>
