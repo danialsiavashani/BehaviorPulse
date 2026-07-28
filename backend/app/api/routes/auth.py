@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -14,7 +14,12 @@ from app.core.security import (
     hash_refresh_token,
     verify_password,
 )
+from app.db.models.api_key import ApiKey
+from app.db.models.client_app import ClientApp
+from app.db.models.client_service_scope import ClientServiceScope
+from app.db.models.observation_analysis import ObservationAnalysis
 from app.db.models.refresh_token import RefreshToken
+from app.db.models.request_log import ApiRequestLog
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.auth import (
@@ -183,3 +188,29 @@ def change_email(
     token = _build_tokens(db, current_user)
     db.commit()
     return token
+
+
+@router.delete("/me", status_code=204)
+def delete_account(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    client_app_ids = db.scalars(
+        select(ClientApp.id).where(ClientApp.owner_user_id == current_user.id)
+    ).all()
+
+    if client_app_ids:
+        db.execute(delete(ApiRequestLog).where(ApiRequestLog.client_app_id.in_(client_app_ids)))
+        db.execute(
+            delete(ObservationAnalysis).where(ObservationAnalysis.client_app_id.in_(client_app_ids))
+        )
+        db.execute(
+            delete(ClientServiceScope).where(ClientServiceScope.client_app_id.in_(client_app_ids))
+        )
+        db.execute(delete(ApiKey).where(ApiKey.client_app_id.in_(client_app_ids)))
+        db.execute(delete(ClientApp).where(ClientApp.id.in_(client_app_ids)))
+
+    db.execute(delete(RefreshToken).where(RefreshToken.user_id == current_user.id))
+
+    db.delete(current_user)
+    db.commit()
