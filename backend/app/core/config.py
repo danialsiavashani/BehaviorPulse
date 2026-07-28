@@ -13,9 +13,17 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 30
     refresh_reuse_grace_seconds: int = 10
+    password_reset_token_expire_minutes: int = 30
 
     llm_provider: str = "deepseek"
     llm_api_key: str | None = None
+
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str | None = None
+    frontend_url: str | None = None
 
 
 settings = Settings()

@@ -50,3 +50,12 @@ class PasswordChange(BaseModel):
 class EmailChange(BaseModel):
     current_password: str
     new_email: EmailStr
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)

@@ -18,21 +18,29 @@ from app.db.models.api_key import ApiKey
 from app.db.models.client_app import ClientApp
 from app.db.models.client_service_scope import ClientServiceScope
 from app.db.models.observation_analysis import ObservationAnalysis
+from app.db.models.password_reset_token import PasswordResetToken
 from app.db.models.refresh_token import RefreshToken
 from app.db.models.request_log import ApiRequestLog
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.auth import (
     EmailChange,
+    ForgotPasswordRequest,
     LogoutRequest,
     PasswordChange,
     RefreshRequest,
+    ResetPasswordRequest,
     Token,
     UserCreate,
     UserLogin,
     UserOut,
     UserUpdate,
 )
+from app.services.email.factory import get_email_client
+
+import logging
+
+logger = logging.getLogger("signaltally")
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
@@ -129,6 +137,62 @@ def logout(payload: LogoutRequest, db: Session = Depends(get_db)):
     if existing is not None and existing.revoked_at is None:
         existing.revoked_at = datetime.now(timezone.utc)
         db.commit()
+
+
+@router.post("/forgot-password", status_code=204)
+def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    user = db.scalar(select(User).where(User.email == payload.email))
+
+    if user is not None:
+        raw_token = generate_refresh_token()
+        reset_row = PasswordResetToken(
+            user_id=user.id,
+            token_hash=hash_refresh_token(raw_token),
+            expires_at=datetime.now(timezone.utc)
+            + timedelta(minutes=settings.password_reset_token_expire_minutes),
+        )
+        db.add(reset_row)
+        db.commit()
+
+        frontend_url = (settings.frontend_url or "").rstrip("/")
+        reset_link = f"{frontend_url}/reset-password?token={raw_token}"
+
+        try:
+            get_email_client().send_password_reset_email(user.email, reset_link)
+        except Exception as exc:
+            # Never let an email-provider hiccup crash this request or leak
+            # whether the account exists via a 500. The reset token is
+            # already saved - log the link so it's still recoverable in dev.
+            logger.warning(
+                "Failed to send password reset email to %s: %s. Reset link: %s",
+                user.email,
+                exc,
+                reset_link,
+            )
+
+    return None
+
+
+@router.post("/reset-password", response_model=Token)
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    token_hash = hash_refresh_token(payload.token)
+    existing = db.scalar(select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash))
+
+    if existing is None or existing.used_at is not None or existing.expires_at < datetime.now(timezone.utc):
+        raise AppError("invalid_token", "This reset link is invalid or has expired.", 400)
+
+    user = db.get(User, existing.user_id)
+    if user is None:
+        raise AppError("invalid_token", "This reset link is invalid or has expired.", 400)
+
+    user.password_hash = hash_password(payload.new_password)
+    user.token_version += 1
+    _revoke_all_refresh_tokens(db, user.id)
+    existing.used_at = datetime.now(timezone.utc)
+
+    token = _build_tokens(db, user)
+    db.commit()
+    return token
 
 
 @router.get("/me", response_model=UserOut)
