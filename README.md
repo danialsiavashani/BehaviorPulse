@@ -4,15 +4,17 @@ Behavioral analytics API platform for computer-vision and detection pipelines �
 
 ## The idea
 
-Consumer apps with a detection pipeline (wildlife cameras, traffic cameras, security systems, field sensors) send structured observation data to BehaviorPulse. The backend computes deterministic analytics — frequency patterns, time-of-day trends, recurring-day detection, confidence scoring — using pandas/numpy. Only after every fact is already computed does an LLM step in, and its only job is to explain those facts in plain English.
+Consumer apps with a detection pipeline (wildlife cameras, traffic cameras, security systems, field sensors) send **raw, timestamped observation records** to BehaviorPulse — just facts: what was detected, when, from which source, at what confidence. No pre-analysis, no aggregation, no pattern-finding happens on the consumer's side. That's the whole point: BehaviorPulse does 100% of the analytical work, from raw records to finished insight.
+
+The backend computes every fact first — frequency patterns, time-of-day trends, recurring-day detection, confidence scoring — deterministically, using pandas/numpy. Only after every number already exists does an LLM step in, and its only job is to explain those already-computed facts in plain English.
 
 The LLM never sees raw observation data, never counts anything, never invents a metric or a confidence score. It receives a compact, pre-computed evidence packet it's contractually forbidden from contradicting. Most "AI-powered analytics" tools let a model eyeball raw data and guess — this one structurally can't.
 
 ```
 Consumer app's CV/detection pipeline
-  → normalizes rows into BehaviorPulse's JSON format
+  → sends raw timestamped observations (no pre-analysis)
   → BehaviorPulse authenticates the request
-  → computes metrics with pandas/numpy
+  → computes every metric with pandas/numpy, from scratch
   → sends only the computed facts to an LLM
   → LLM writes explanation/recommendation only
   → returns structured JSON (summary, prediction, pattern table, confidence)
@@ -20,13 +22,19 @@ Consumer app's CV/detection pipeline
 
 ## Core endpoint
 
-`POST /v1/observations/analyze` accepts a mixed batch of observations — any number of distinct subjects in one call (all animal species a backyard camera saw, every vehicle type a traffic camera logged) — and returns:
+`POST /v1/observations/analyze` accepts a mixed batch of raw observations — any number of distinct subjects in one call (all animal species a backyard camera saw, every vehicle type a traffic camera logged) — and returns:
 
 - Frequency breakdown by subject and by source
 - Day-of-week and time-of-day pattern detection
 - A recurring-pattern check via real calendar math (e.g. "4 of the last 5 Wednesdays")
-- A plain-English summary, a cautious prediction, and a computed confidence score
+- A plain-English summary, a prediction, and a computed confidence score
 - Recommendations, always paired with an explicit "not a guarantee" warning
+
+### On the prediction, specifically
+
+The prediction is a **transparent, recurrence-based heuristic** — not a statistical forecasting model, and deliberately so. It looks at how many of the last N instances of a given day/time-window actually had activity (via `pandas.date_range`, real calendar math, not estimation), and extrapolates forward. The confidence score that comes with it is a plain, inspectable formula — pattern strength × sample-size factor — never fabricated, never the LLM's opinion.
+
+That's a deliberate trade-off: no seasonality modeling, no statistical confidence intervals, no backtesting — in exchange for a prediction that can never silently lie about how sure it is. Every response ships with an explicit warning that predictions are pattern estimates, not guarantees.
 
 ## Auth & security
 
