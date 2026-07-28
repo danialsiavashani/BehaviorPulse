@@ -7,8 +7,6 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { label: "Profile", href: "/dashboard/account" },
   { label: "Security", href: "/dashboard/account/security" },
-  { label: "Notifications", href: "/dashboard/account/notifications" },
-  { label: "Team", href: "/dashboard/account/team" },
   { label: "Danger zone", href: "/dashboard/account/danger-zone" },
 ] as const;
 
