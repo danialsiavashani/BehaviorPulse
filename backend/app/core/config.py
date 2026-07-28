@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 30
     refresh_reuse_grace_seconds: int = 10
     password_reset_token_expire_minutes: int = 30
+    demo_account_max_age_hours: int = 2
 
     llm_provider: str = "deepseek"
     llm_api_key: str | None = None

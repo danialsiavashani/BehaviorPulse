@@ -1,3 +1,5 @@
+import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
@@ -37,6 +39,7 @@ from app.schemas.auth import (
     UserUpdate,
 )
 from app.services.email.factory import get_email_client
+from app.services.seed_demo_data import seed_demo_data
 
 import logging
 
@@ -66,6 +69,37 @@ def _revoke_all_refresh_tokens(db: Session, user_id, reason: str) -> None:
     )
 
 
+def _delete_user_and_all_data(db: Session, user: User) -> None:
+    """Cascading delete shared by real account deletion, demo-account
+    sweeping, and demo-account logout - one place, not three copies."""
+    client_app_ids = db.scalars(
+        select(ClientApp.id).where(ClientApp.owner_user_id == user.id)
+    ).all()
+
+    if client_app_ids:
+        db.execute(delete(ApiRequestLog).where(ApiRequestLog.client_app_id.in_(client_app_ids)))
+        db.execute(
+            delete(ObservationAnalysis).where(ObservationAnalysis.client_app_id.in_(client_app_ids))
+        )
+        db.execute(
+            delete(ClientServiceScope).where(ClientServiceScope.client_app_id.in_(client_app_ids))
+        )
+        db.execute(delete(ApiKey).where(ApiKey.client_app_id.in_(client_app_ids)))
+        db.execute(delete(ClientApp).where(ClientApp.id.in_(client_app_ids)))
+
+    db.execute(delete(RefreshToken).where(RefreshToken.user_id == user.id))
+    db.delete(user)
+
+
+def _sweep_stale_demo_accounts(db: Session) -> None:
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=settings.demo_account_max_age_hours)
+    stale_users = db.scalars(
+        select(User).where(User.is_demo == True, User.created_at < cutoff)  # noqa: E712
+    ).all()
+    for user in stale_users:
+        _delete_user_and_all_data(db, user)
+
+
 @router.post("/signup", response_model=UserOut, status_code=201)
 def signup(payload: UserCreate, db: Session = Depends(get_db)):
     existing = db.scalar(select(User).where(User.email == payload.email))
@@ -89,6 +123,26 @@ def login(payload: UserLogin, db: Session = Depends(get_db)):
     return token
 
 
+@router.post("/demo-login", response_model=Token)
+def demo_login(db: Session = Depends(get_db)):
+    _sweep_stale_demo_accounts(db)
+
+    demo_email = f"demo_{uuid.uuid4().hex[:12]}@behaviorpulse.demo"
+    user = User(
+        email=demo_email,
+        password_hash=hash_password(secrets.token_urlsafe(24)),
+        is_demo=True,
+    )
+    db.add(user)
+    db.flush()  # need user.id populated before seeding references it
+
+    seed_demo_data(db, user.id)
+
+    token = _build_tokens(db, user)
+    db.commit()
+    return token
+
+
 @router.post("/refresh", response_model=Token)
 def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
     token_hash = hash_refresh_token(payload.refresh_token)
@@ -101,12 +155,6 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
         seconds_since_revoked = (datetime.now(timezone.utc) - existing.revoked_at).total_seconds()
         within_grace_period = seconds_since_revoked <= settings.refresh_reuse_grace_seconds
 
-        # Grace period only ever applies to tokens that died via normal
-        # rotation - a race between two legitimate concurrent requests.
-        # Tokens killed by logout, password/email change, or a prior
-        # theft response were deliberately, permanently ended - reusing
-        # those is never given the benefit of the doubt, no matter how
-        # soon after.
         if within_grace_period and existing.revoked_reason == "rotated":
             user = db.get(User, existing.user_id)
             if user is None:
@@ -143,10 +191,22 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
 def logout(payload: LogoutRequest, db: Session = Depends(get_db)):
     token_hash = hash_refresh_token(payload.refresh_token)
     existing = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
-    if existing is not None and existing.revoked_at is None:
-        existing.revoked_at = datetime.now(timezone.utc)
-        existing.revoked_reason = "logout"
+
+    if existing is None or existing.revoked_at is not None:
+        return
+
+    user = db.get(User, existing.user_id)
+
+    if user is not None and user.is_demo:
+        # Demo accounts don't linger - logging out fully removes it
+        # immediately, rather than waiting for the next sweep.
+        _delete_user_and_all_data(db, user)
         db.commit()
+        return
+
+    existing.revoked_at = datetime.now(timezone.utc)
+    existing.revoked_reason = "logout"
+    db.commit()
 
 
 @router.post("/forgot-password", status_code=204)
@@ -266,22 +326,5 @@ def delete_account(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    client_app_ids = db.scalars(
-        select(ClientApp.id).where(ClientApp.owner_user_id == current_user.id)
-    ).all()
-
-    if client_app_ids:
-        db.execute(delete(ApiRequestLog).where(ApiRequestLog.client_app_id.in_(client_app_ids)))
-        db.execute(
-            delete(ObservationAnalysis).where(ObservationAnalysis.client_app_id.in_(client_app_ids))
-        )
-        db.execute(
-            delete(ClientServiceScope).where(ClientServiceScope.client_app_id.in_(client_app_ids))
-        )
-        db.execute(delete(ApiKey).where(ApiKey.client_app_id.in_(client_app_ids)))
-        db.execute(delete(ClientApp).where(ClientApp.id.in_(client_app_ids)))
-
-    db.execute(delete(RefreshToken).where(RefreshToken.user_id == current_user.id))
-
-    db.delete(current_user)
+    _delete_user_and_all_data(db, current_user)
     db.commit()
