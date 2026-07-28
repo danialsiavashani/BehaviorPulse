@@ -6,8 +6,8 @@ export default async function SecuritySettingsPage() {
   const user = await getCurrentUser();
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="max-w-md rounded-lg border p-5">
+    <div className="grid gap-6 md:grid-cols-2">
+      <div className="rounded-lg border p-5">
         <h2 className="text-sm font-medium">Change email</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Update the email address used to sign in.
@@ -17,7 +17,7 @@ export default async function SecuritySettingsPage() {
         </div>
       </div>
 
-      <div className="max-w-md rounded-lg border p-5">
+      <div className="rounded-lg border p-5">
         <h2 className="text-sm font-medium">Change password</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Choose a strong password you don't use elsewhere.
