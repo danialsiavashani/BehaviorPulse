@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Download } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 type AnalysisDetail = {
   analysis_id: string;
@@ -40,11 +42,23 @@ export default async function AnalysisDetailPage({
         <span className="text-foreground">{analysis.subject_label}</span>
       </div>
 
-      <div className="mt-3 flex items-center gap-3">
-        <h1 className="text-2xl font-semibold">{analysis.subject_label}</h1>
-        <Badge variant="secondary">
-          {Math.round(analysis.computed_confidence * 100)}% confidence
-        </Badge>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold">{analysis.subject_label}</h1>
+          <Badge variant="secondary">
+            {Math.round(analysis.computed_confidence * 100)}% confidence
+          </Badge>
+        </div>
+
+        <a
+          href={`/api/analyses/${analysis.analysis_id}/export`}
+          download
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+        >
+        
+          <Download data-icon="inline-start" />
+          Export
+        </a>
       </div>
 
       <p className="mt-1 text-sm text-muted-foreground">

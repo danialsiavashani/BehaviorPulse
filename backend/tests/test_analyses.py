@@ -1,6 +1,8 @@
+import io
 import uuid
 
 from fastapi.testclient import TestClient
+from openpyxl import load_workbook
 
 from app.main import app
 
@@ -144,3 +146,57 @@ def test_get_analysis_detail_not_found_for_someone_elses_analysis():
     response = client.get(f"/v1/analyses/{analysis['analysis_id']}", headers=_headers(token_b))
 
     assert response.status_code == 404
+
+
+def test_export_analysis_requires_auth():
+    response = client.get("/v1/analyses/ana_doesnotexist/export")
+    assert response.status_code == 403
+
+
+def test_export_analysis_not_found():
+    token = _signup_and_login()
+    response = client.get("/v1/analyses/ana_doesnotexist/export", headers=_headers(token))
+    assert response.status_code == 404
+
+
+def test_export_analysis_not_found_for_someone_elses_analysis():
+    token_a = _signup_and_login()
+    app_a = _create_app(token_a)
+    analysis = _run_real_analysis(token_a, app_a)
+
+    token_b = _signup_and_login()
+    response = client.get(
+        f"/v1/analyses/{analysis['analysis_id']}/export", headers=_headers(token_b)
+    )
+    assert response.status_code == 404
+
+
+def test_export_analysis_returns_valid_xlsx():
+    token = _signup_and_login()
+    app_out = _create_app(token)
+    analysis = _run_real_analysis(token, app_out)
+
+    response = client.get(
+        f"/v1/analyses/{analysis['analysis_id']}/export", headers=_headers(token)
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert analysis["analysis_id"] in response.headers["content-disposition"]
+
+    # Real structural check, not just headers: load the returned bytes as an
+    # actual workbook and confirm the sheets and key values are what the
+    # export builder is supposed to produce.
+    wb = load_workbook(io.BytesIO(response.content))
+    assert wb.sheetnames == ["Summary", "Metrics", "Recommendations"]
+
+    summary_ws = wb["Summary"]
+    summary_cells = [cell.value for row in summary_ws.iter_rows() for cell in row]
+    assert analysis["analysis_id"] in summary_cells
+    assert app_out["name"] in summary_cells
+
+    metrics_ws = wb["Metrics"]
+    metrics_cells = [cell.value for row in metrics_ws.iter_rows() for cell in row]
+    assert "hummingbird" in metrics_cells

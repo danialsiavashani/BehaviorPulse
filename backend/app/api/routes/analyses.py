@@ -1,6 +1,8 @@
+import io
 import uuid
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -12,6 +14,7 @@ from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.observation_analysis import ObservationAnalysisDetail, ObservationAnalysisListItem
 from app.schemas.pagination import PaginatedResponse, PaginationParams
+from app.services.export.excel_export import build_analysis_export
 
 router = APIRouter(prefix="/v1/analyses", tags=["analyses"])
 
@@ -75,12 +78,14 @@ def list_analyses(
     )
 
 
-@router.get("/{analysis_id}", response_model=ObservationAnalysisDetail)
-def get_analysis(
-    analysis_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
+def _get_owned_analysis(
+    db: Session, analysis_id: str, current_user: User
+) -> tuple[ObservationAnalysis, ClientApp]:
+    """Shared lookup + ownership check for a single analysis. Used by both
+    the detail route and the export route so this logic - and its 404
+    behavior for both 'doesn't exist' and 'exists but isn't yours' - only
+    lives in one place.
+    """
     analysis = db.scalar(
         select(ObservationAnalysis).where(ObservationAnalysis.analysis_id == analysis_id)
     )
@@ -90,6 +95,17 @@ def get_analysis(
     client_app = db.get(ClientApp, analysis.client_app_id)
     if client_app is None or client_app.owner_user_id != current_user.id:
         raise AppError("not_found", "Analysis not found.", 404)
+
+    return analysis, client_app
+
+
+@router.get("/{analysis_id}", response_model=ObservationAnalysisDetail)
+def get_analysis(
+    analysis_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    analysis, client_app = _get_owned_analysis(db, analysis_id, current_user)
 
     return ObservationAnalysisDetail(
         id=analysis.id,
@@ -107,4 +123,22 @@ def get_analysis(
         recommendations=analysis.recommendations_json,
         warnings=analysis.warnings_json,
         created_at=analysis.created_at,
+    )
+
+
+@router.get("/{analysis_id}/export")
+def export_analysis(
+    analysis_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    analysis, client_app = _get_owned_analysis(db, analysis_id, current_user)
+
+    xlsx_bytes = build_analysis_export(analysis, client_app.name)
+    filename = f"behaviorpulse_{analysis.analysis_id}.xlsx"
+
+    return StreamingResponse(
+        io.BytesIO(xlsx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
