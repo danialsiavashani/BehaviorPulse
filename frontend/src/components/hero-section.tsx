@@ -1,19 +1,23 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ServiceDemo } from "@/components/services/service-demo";
+import { PipelineAnimation } from "@/components/pipeline";
 import { DemoLoginButton } from "@/components/auth/demo-login-button";
 
 export function HeroSection() {
   return (
     <div className="grid w-full gap-16 px-[5%] md:grid-cols-2 md:items-center">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Behavioral analytics for computer-vision pipelines
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          For camera, sensor & CV detection pipelines
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+          Compute first. Explain second. Never guess.
         </h1>
         <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-          Send timestamped observation data from your cameras or sensors.
-          BehaviorPulse computes deterministic patterns and returns plain-English
-          summaries, predictions, and confidence scores — no guessing, no invented numbers.
+          Send raw, timestamped detections — from a CNN-driven camera pipeline
+          or just structured data you provide. BehaviorPulse computes every
+          pattern deterministically before an LLM ever sees it, and only
+          explains facts that already exist.
         </p>
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -27,7 +31,7 @@ export function HeroSection() {
         </div>
       </div>
 
-      <ServiceDemo />
+      <PipelineAnimation />
     </div>
   );
 }
