@@ -5,7 +5,7 @@ import { DemoLoginButton } from "@/components/auth/demo-login-button";
 
 export function HeroSection() {
   return (
-    <div className="grid w-full gap-16 px-[5%] md:grid-cols-2 md:items-center">
+    <div className="grid w-full gap-10 px-[5%] py-12 md:grid-cols-2 md:items-center md:gap-16 md:py-0">
       <div>
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           For camera, sensor & CV detection pipelines
