@@ -2,12 +2,18 @@ import { formatDate } from "@/lib/utils";
 
 type DayCount = { date: string; count: number };
 
-export function RequestsChart({ data }: { data: DayCount[] }) {
+export function RequestsChart({
+  data,
+  title = "Requests over the last 14 days",
+}: {
+  data: DayCount[];
+  title?: string;
+}) {
   const maxCount = Math.max(...data.map((d) => d.count), 1);
 
   return (
     <div className="rounded-lg border p-4">
-      <p className="text-sm font-medium">Requests over the last 14 days</p>
+      <p className="text-sm font-medium">{title}</p>
       <div className="mt-4 flex h-32 items-end gap-1">
         {data.map((d) => (
           <div key={d.date} className="group relative flex-1">

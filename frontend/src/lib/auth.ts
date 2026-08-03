@@ -266,3 +266,18 @@ export async function getCurrentUser() {
 
   return res.json();
 }
+
+export async function getCurrentAdmin() {
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get("access_token")?.value;
+
+  if (!accessToken) return null;
+
+  const res = await safeFetch(`${BACKEND_URL}/v1/admin/me`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!res || !res.ok) return null;
+
+  return res.json();
+}
