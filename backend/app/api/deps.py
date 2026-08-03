@@ -30,4 +30,14 @@ def get_current_user(
     if user.token_version != token_version:
         raise AppError("invalid_token", "Invalid or expired token.", 401)
 
+    if not user.is_active:
+        raise AppError("account_disabled", "This account has been disabled.", 403)
+
     return user
+
+
+def get_current_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "admin":
+        raise AppError("forbidden", "Admin access required.", 403)
+
+    return current_user
