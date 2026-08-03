@@ -282,3 +282,43 @@ def test_count_other_active_admins_excludes_target():
         assert _count_other_active_admins(db, excluding_user_id=admin_a.id) >= 1
     finally:
         db.close()
+
+
+def test_disabled_admin_loses_admin_access():
+    """A disabled admin isn't just a disabled regular user - get_current_admin_user
+    depends on get_current_user, so the is_active check applies to admin
+    routes too, not only /dashboard-facing ones."""
+    _, admin_a_tokens = _admin_signup_and_login()
+    admin_b_email, admin_b_tokens = _admin_signup_and_login()
+    admin_b_id = _get_user_id(admin_a_tokens["access_token"], admin_b_email)
+
+    disable_response = client.patch(
+        f"/v1/admin/users/{admin_b_id}",
+        json={"is_active": False},
+        headers=_headers(admin_a_tokens["access_token"]),
+    )
+    assert disable_response.status_code == 200
+
+    # admin_b's still-unexpired, still-cryptographically-valid access token
+    # should now be rejected on admin routes too, not just regular ones.
+    me_response = client.get("/v1/admin/me", headers=_headers(admin_b_tokens["access_token"]))
+    assert me_response.status_code == 403
+
+
+def test_demoted_admin_loses_admin_access_immediately():
+    """Role isn't baked into the JWT (only sub + tv), so a demotion takes
+    effect on the very next request with the same, still-valid access
+    token - no re-login or token refresh needed for it to take hold."""
+    _, admin_a_tokens = _admin_signup_and_login()
+    admin_b_email, admin_b_tokens = _admin_signup_and_login()
+    admin_b_id = _get_user_id(admin_a_tokens["access_token"], admin_b_email)
+
+    demote_response = client.patch(
+        f"/v1/admin/users/{admin_b_id}",
+        json={"role": "user"},
+        headers=_headers(admin_a_tokens["access_token"]),
+    )
+    assert demote_response.status_code == 200
+
+    me_response = client.get("/v1/admin/me", headers=_headers(admin_b_tokens["access_token"]))
+    assert me_response.status_code == 403

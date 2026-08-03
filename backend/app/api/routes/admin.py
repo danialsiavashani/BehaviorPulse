@@ -23,7 +23,7 @@ from app.schemas.admin import (
 from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.services.token_revocation import revoke_all_refresh_tokens
 
-router = APIRouter(prefix="/v1/admin", tags=["admin"])
+router = APIRouter(prefix="/v1/admin", tags=["admin"], dependencies=[Depends(get_current_admin_user)])
 
 STATS_SIGNUP_WINDOW_DAYS = 30
 RECENT_SIGNUPS_LIMIT = 5
@@ -75,10 +75,7 @@ def read_admin_me(current_admin: User = Depends(get_current_admin_user)):
 
 
 @router.get("/stats", response_model=AdminStatsOut)
-def get_stats(
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin_user),
-):
+def get_stats(db: Session = Depends(get_db)):
     total_users = db.scalar(select(func.count()).select_from(User))
     demo_users = db.scalar(select(func.count()).select_from(User).where(User.is_demo == True))  # noqa: E712
     active_users = db.scalar(select(func.count()).select_from(User).where(User.is_active == True))  # noqa: E712
@@ -120,7 +117,6 @@ def list_users(
     is_demo: bool | None = Query(default=None),
     pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin_user),
 ):
     filters = []
     if search:
@@ -189,7 +185,6 @@ def list_users(
 def get_user(
     user_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin_user),
 ):
     user = db.get(User, user_id)
     if user is None:
