@@ -13,7 +13,8 @@ from app.api.routes.analyses import router as analyses_router
 from app.core.errors import register_exception_handlers
 from app.db.seed_services import seed_services
 from app.middleware.request_id import RequestIDMiddleware
-
+from app.api.routes.analyses import router as analyses_router
+from app.api.routes.admin import router as admin_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -34,7 +35,8 @@ app.include_router(services_router)
 app.include_router(logs_router)
 app.include_router(usage_router)
 app.include_router(analyses_router)
-
+app.include_router(analyses_router)
+app.include_router(admin_router)
 
 @app.get("/health")
 def health_check():
