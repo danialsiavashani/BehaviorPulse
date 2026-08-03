@@ -59,3 +59,14 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str = Field(min_length=8)
+
+
+class UserOut(BaseModel):
+    id: uuid.UUID
+    email: EmailStr
+    name: str | None
+    role: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
