@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -40,6 +40,7 @@ from app.schemas.auth import (
 )
 from app.services.email.factory import get_email_client
 from app.services.seed_demo_data import seed_demo_data
+from app.services.token_revocation import revoke_all_refresh_tokens
 
 import logging
 
@@ -59,14 +60,6 @@ def _build_tokens(db: Session, user: User) -> Token:
 
     access_token = create_access_token(subject=str(user.id), token_version=user.token_version)
     return Token(access_token=access_token, refresh_token=raw_refresh)
-
-
-def _revoke_all_refresh_tokens(db: Session, user_id, reason: str) -> None:
-    db.execute(
-        update(RefreshToken)
-        .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
-        .values(revoked_at=datetime.now(timezone.utc), revoked_reason=reason)
-    )
 
 
 def _delete_user_and_all_data(db: Session, user: User) -> None:
@@ -166,7 +159,7 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
         user = db.get(User, existing.user_id)
         if user is not None:
             user.token_version += 1
-        _revoke_all_refresh_tokens(db, existing.user_id, reason="security_action")
+        revoke_all_refresh_tokens(db, existing.user_id, reason="security_action")
         db.commit()
         raise AppError("invalid_token", "Invalid or expired refresh token.", 401)
 
@@ -254,7 +247,7 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
 
     user.password_hash = hash_password(payload.new_password)
     user.token_version += 1
-    _revoke_all_refresh_tokens(db, user.id, reason="security_action")
+    revoke_all_refresh_tokens(db, user.id, reason="security_action")
     existing.used_at = datetime.now(timezone.utc)
 
     token = _build_tokens(db, user)
@@ -290,7 +283,7 @@ def change_password(
 
     current_user.password_hash = hash_password(payload.new_password)
     current_user.token_version += 1
-    _revoke_all_refresh_tokens(db, current_user.id, reason="security_action")
+    revoke_all_refresh_tokens(db, current_user.id, reason="security_action")
 
     token = _build_tokens(db, current_user)
     db.commit()
@@ -314,7 +307,7 @@ def change_email(
 
     current_user.email = payload.new_email
     current_user.token_version += 1
-    _revoke_all_refresh_tokens(db, current_user.id, reason="security_action")
+    revoke_all_refresh_tokens(db, current_user.id, reason="security_action")
 
     token = _build_tokens(db, current_user)
     db.commit()
