@@ -8,3 +8,5 @@ tests/
 *.md
 generate_demo_content.py
 verify_llm.py
+promote_admin.py
+cleanup_test_users.py
