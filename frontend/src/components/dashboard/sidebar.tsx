@@ -12,6 +12,7 @@ import {
   ClipboardList,
   BookOpen,
   UserCircle,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LogoutButton } from "@/components/dashboard/logout-button";
@@ -27,7 +28,7 @@ const NAV_ITEMS = [
   { label: "Account", href: "/dashboard/account", icon: UserCircle, enabled: true },
 ] as const;
 
-export function Sidebar({ userEmail }: { userEmail: string }) {
+export function Sidebar({ userEmail, isAdmin }: { userEmail: string; isAdmin?: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -77,6 +78,18 @@ export function Sidebar({ userEmail }: { userEmail: string }) {
           })}
         </nav>
 
+        {isAdmin && (
+          <div className="border-t p-3">
+            <Link
+              href="/admin"
+              className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              Admin Panel
+            </Link>
+          </div>
+        )}
+
         <div className="border-t p-3">
           <p className="truncate px-2.5 text-xs text-muted-foreground">{userEmail}</p>
           <LogoutButton />
@@ -90,7 +103,18 @@ export function Sidebar({ userEmail }: { userEmail: string }) {
             <Activity className="h-5 w-5 text-primary" />
             <span className="text-sm font-medium">BehaviorPulse</span>
           </div>
-          <LogoutButton compact />
+          <div className="flex items-center gap-1">
+            {isAdmin && (
+              <Link
+                href="/admin"
+                aria-label="Admin Panel"
+                className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <ShieldCheck className="h-4 w-4" />
+              </Link>
+            )}
+            <LogoutButton compact />
+          </div>
         </div>
 
         <nav className="flex gap-2 overflow-x-auto px-[5%] pb-3">

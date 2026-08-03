@@ -12,7 +12,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex h-svh flex-col overflow-hidden lg:flex-row">
-      <Sidebar userEmail={user.email} />
+      <Sidebar userEmail={user.email} isAdmin={user.role === "admin"} />
       <main className="flex-1 overflow-y-auto p-6">{children}</main>
     </div>
   );
