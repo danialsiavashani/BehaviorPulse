@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -16,6 +16,7 @@ from app.core.security import (
     hash_refresh_token,
     verify_password,
 )
+from app.db.models.admin_action_log import AdminActionLog
 from app.db.models.api_key import ApiKey
 from app.db.models.client_app import ClientApp
 from app.db.models.client_service_scope import ClientServiceScope
@@ -81,6 +82,12 @@ def _delete_user_and_all_data(db: Session, user: User) -> None:
         db.execute(delete(ClientApp).where(ClientApp.id.in_(client_app_ids)))
 
     db.execute(delete(RefreshToken).where(RefreshToken.user_id == user.id))
+    db.execute(delete(PasswordResetToken).where(PasswordResetToken.user_id == user.id))
+    db.execute(
+        delete(AdminActionLog).where(
+            or_(AdminActionLog.admin_id == user.id, AdminActionLog.target_user_id == user.id)
+        )
+    )
     db.delete(user)
 
 
@@ -110,6 +117,9 @@ def login(payload: UserLogin, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.email == payload.email))
     if user is None or not verify_password(payload.password, user.password_hash):
         raise AppError("invalid_credentials", "Incorrect email or password.", 401)
+
+    if not user.is_active:
+        raise AppError("account_disabled", "This account has been disabled.", 403)
 
     token = _build_tokens(db, user)
     db.commit()
