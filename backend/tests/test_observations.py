@@ -177,3 +177,54 @@ def test_analyze_empty_observations_rejected():
 
     assert response.status_code == 422
     assert response.json()["error"] == "invalid_payload"
+
+def test_unhandled_exception_in_analyze_still_logs_with_client_app_id(monkeypatch):
+    """Regression test: require_service_auth resolves the client app before
+    the route body runs, but never stashed it on request.state - only
+    service_key. The global exception handler (app/core/errors.py) already
+    existed and already ran correctly on unhandled exceptions; it just
+    always wrote client_app_id=None, since that's all request.state had.
+    GET /v1/logs INNER JOINs on client_app_id, so a NULL row can never
+    appear there. Not "no log was written" - a log WAS written, just one
+    nobody could ever see.
+
+    Uses its own TestClient with raise_server_exceptions=False: Starlette's
+    real behavior is to run the registered exception handler, send its
+    response to the actual client, and then re-raise the original
+    exception afterward purely for server-side visibility (so e.g. Uvicorn
+    logs it) - a real HTTP client never sees that re-raise, only the
+    response. The module-level `client` defaults to surfacing that re-raise
+    (raise_server_exceptions=True), which is the right default for every
+    other test in this file - an unhandled exception in a normal test
+    should fail loudly, not get silently swallowed into a 500. This test is
+    the deliberate exception, since provoking exactly that behavior is the
+    point."""
+    import app.api.routes.observations as observations_module
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("simulated crash")
+
+    monkeypatch.setattr(observations_module, "run_observation_analytics", _boom)
+
+    lenient_client = TestClient(app, raise_server_exceptions=False)
+
+    token = _signup_and_login()
+    app_out = _create_app(token)
+    _grant_scope(token, app_out["id"])
+    key = _create_api_key(token, app_out["id"])
+    service_headers = {"X-Client-Id": app_out["client_id"], "X-Api-Key": key["raw_key"]}
+
+    response = lenient_client.post(
+        "/v1/observations/analyze", json=_sample_payload(), headers=service_headers
+    )
+    assert response.status_code == 500
+    assert response.json()["error"] == "internal_error"
+
+    dashboard_headers = {"Authorization": f"Bearer {token}"}
+    logs_response = client.get(
+        f"/v1/logs?client_app_id={app_out['id']}", headers=dashboard_headers
+    )
+    body = logs_response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["status_code"] == 500
+    assert body["items"][0]["error_code"] == "internal_error"

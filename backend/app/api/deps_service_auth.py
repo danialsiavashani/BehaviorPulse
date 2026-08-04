@@ -78,6 +78,7 @@ def require_service_auth(service_key: str):
         # (success or payload_too_large) once the real work is done.
         request.state.log_start_time = start
         request.state.service_key = service_key
+        request.state.client_app_id = client_app.id
 
         return client_app
 
