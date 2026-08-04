@@ -3,7 +3,9 @@ import { Button } from "@/components/ui/button";
 import { CodeBlock } from "@/components/docs/code-block";
 import { CodeExampleSwitcher } from "@/components/docs/code-example-switcher";
 
-const CURL_EXAMPLE = `curl -X POST https://your-domain.com/v1/observations/analyze \\
+const BASE_URL = "https://api.behaviorpulse.com";
+
+const CURL_EXAMPLE = `curl -X POST ${BASE_URL}/v1/observations/analyze \\
   -H "X-Client-Id: client_xxx" \\
   -H "X-Api-Key: bp_sk_xxx" \\
   -H "Content-Type: application/json" \\
@@ -26,7 +28,7 @@ const CURL_EXAMPLE = `curl -X POST https://your-domain.com/v1/observations/analy
 const PYTHON_EXAMPLE = `import requests
 
 response = requests.post(
-    "https://your-domain.com/v1/observations/analyze",
+    "${BASE_URL}/v1/observations/analyze",
     headers={
         "X-Client-Id": "client_xxx",
         "X-Api-Key": "bp_sk_xxx",
@@ -50,7 +52,7 @@ response = requests.post(
 
 print(response.json())`;
 
-const JAVASCRIPT_EXAMPLE = `const response = await fetch("https://your-domain.com/v1/observations/analyze", {
+const JAVASCRIPT_EXAMPLE = `const response = await fetch("${BASE_URL}/v1/observations/analyze", {
   method: "POST",
   headers: {
     "X-Client-Id": "client_xxx",
