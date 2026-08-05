@@ -28,6 +28,20 @@ def _signup_and_login() -> tuple[str, dict]:
     _signup(email)
     return email, _login(email)
 
+class _FakeEmailClient:
+    """Stands in for whatever real EmailClient get_email_client() would
+    otherwise return (SMTPEmailClient or ConsoleEmailClient, depending on
+    ambient settings.smtp_* config). Tests that need the raw reset link
+    should patch get_email_client() to return this, rather than patching a
+    specific concrete class - that way the test passes identically whether
+    it runs locally with real SMTP configured, or in CI with none at all."""
+
+    def __init__(self) -> None:
+        self.captured: dict = {}
+
+    def send_password_reset_email(self, to_email: str, reset_link: str) -> None:
+        self.captured["reset_link"] = reset_link
+
 
 def _headers(access_token: str) -> dict:
     return {"Authorization": f"Bearer {access_token}"}
@@ -121,23 +135,14 @@ def test_forgot_password_always_returns_204():
 
 
 def test_reset_password_flow(monkeypatch):
-    captured = {}
-
-    def fake_send(self, to_email, reset_link):
-        captured["reset_link"] = reset_link
-
-    # Patched here rather than ConsoleEmailClient - Gmail SMTP is
-    # configured and working now, so get_email_client() actually returns
-    # SMTPEmailClient in this environment.
-    from app.services.email.smtp_client import SMTPEmailClient
-
-    monkeypatch.setattr(SMTPEmailClient, "send_password_reset_email", fake_send)
+    fake_client = _FakeEmailClient()
+    monkeypatch.setattr("app.api.routes.auth.get_email_client", lambda: fake_client)
 
     email = _random_email()
     _signup(email)
 
     client.post("/v1/auth/forgot-password", json={"email": email})
-    token = captured["reset_link"].split("token=")[1]
+    token = fake_client.captured["reset_link"].split("token=")[1]
 
     reset_response = client.post(
         "/v1/auth/reset-password", json={"token": token, "new_password": "newpass456"}
@@ -156,19 +161,13 @@ def test_reset_password_flow(monkeypatch):
 
 
 def test_reset_password_token_cannot_be_reused(monkeypatch):
-    captured = {}
-
-    def fake_send(self, to_email, reset_link):
-        captured["reset_link"] = reset_link
-
-    from app.services.email.smtp_client import SMTPEmailClient
-
-    monkeypatch.setattr(SMTPEmailClient, "send_password_reset_email", fake_send)
+    fake_client = _FakeEmailClient()
+    monkeypatch.setattr("app.api.routes.auth.get_email_client", lambda: fake_client)
 
     email = _random_email()
     _signup(email)
     client.post("/v1/auth/forgot-password", json={"email": email})
-    token = captured["reset_link"].split("token=")[1]
+    token = fake_client.captured["reset_link"].split("token=")[1]
 
     first_response = client.post(
         "/v1/auth/reset-password", json={"token": token, "new_password": "newpass456"}
@@ -179,7 +178,6 @@ def test_reset_password_token_cannot_be_reused(monkeypatch):
         "/v1/auth/reset-password", json={"token": token, "new_password": "anotherpass789"}
     )
     assert second_response.status_code == 400
-
 
 def test_reset_password_invalid_token_rejected():
     response = client.post(
