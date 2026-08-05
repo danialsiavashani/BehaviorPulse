@@ -91,7 +91,7 @@ export default async function ServiceDetailPage({
         <h2 className="text-sm font-medium">Enabled on</h2>
         {enabledApps.length === 0 ? (
           <p className="mt-1.5 text-sm text-muted-foreground">
-            Not enabled on any app yet. Grant this service from an app's Settings tab.
+            Not enabled on any app yet. Grant this service from an app&apos;s Settings tab.
           </p>
         ) : (
           <div className="mt-1.5 flex flex-col gap-2">

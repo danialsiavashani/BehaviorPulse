@@ -20,7 +20,7 @@ export default async function SecuritySettingsPage() {
       <div className="rounded-lg border p-5">
         <h2 className="text-sm font-medium">Change password</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Choose a strong password you don't use elsewhere.
+          Choose a strong password you don&apos;t use elsewhere
         </p>
         <div className="mt-4 border-t pt-4">
           <ChangePasswordForm />

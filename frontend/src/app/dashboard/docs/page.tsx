@@ -128,8 +128,8 @@ export default function DocsPage() {
         <h2 className="text-lg font-medium">Getting started</h2>
         <ol className="mt-3 flex flex-col gap-2 text-sm text-muted-foreground">
           <li>1. Create an app under Apps.</li>
-          <li>2. Grant it the <code className="font-mono">observations.analyze</code> scope from the app's Settings tab.</li>
-          <li>3. Generate an API key from the app's API Keys tab.</li>
+          <li>2. Grant it the <code className="font-mono">observations.analyze</code> scope from the app&apos;s Settings tab.</li>
+          <li>3. Generate an API key from the app&apos;s API Keys tab.</li>
           <li>4. Call the endpoint below using that key.</li>
         </ol>
         <Button className="mt-4" size="sm" asChild>
